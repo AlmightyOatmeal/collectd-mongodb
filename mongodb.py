@@ -156,53 +156,76 @@ class MongoDB(object):
                 pass
 
         # uptime
-        self.submit('gauge', 'uptime', server_status['uptime'])
+        if 'uptime' in server_status:
+            self.submit('gauge', 'uptime',
+                        server_status['uptime'])
 
         # operations
-        if 'opcounters' in server_status:
-            for k, v in server_status['opcounters'].items():
-                self.submit('counter', 'opcounters.' + k, v)
+        opcounters_obj = server_status.get('opcounters')
+        if opcounters_obj:
+            for counter_key in opcounters_obj.keys():
+                self.submit('counter', 'opcounters.{}'.format(counter_key),
+                            opcounters_obj[counter_key])
 
         # memory
-        if 'mem' in server_status:
+        mem_obj = server_status.get('mem')
+        if mem_obj:
             for t in ['resident', 'virtual', 'mapped']:
-                self.submit('gauge', 'mem.' + t, server_status['mem'][t])
+                if t not in mem_obj:
+                    continue
+
+                self.submit('gauge', 'mem.{}'.format(t),
+                            mem_obj[t])
 
         # network
-        if 'network' in server_status:
+        network_obj = server_status.get('network')
+        if network_obj:
             for t in ['bytesIn', 'bytesOut', 'numRequests']:
-                self.submit('counter', 'network.' + t,
-                            server_status['network'][t])
+                if t not in network_obj:
+                    continue
+
+                self.submit('counter', 'network.{}'.format(t),
+                            network_obj[t])
 
         # connections
-        if 'connections' in server_status:
+        connections_obj = server_status.get('connections')
+        if connections_obj:
             for t in ['current', 'available', 'totalCreated']:
-                self.submit('gauge', 'connections.' + t,
-                            server_status['connections'][t])
+                if t not in connections_obj:
+                    continue
+
+                self.submit('gauge', 'connections.{}'.format(t),
+                            connections_obj[t])
 
         # background flush
-        if 'backgroundFlushing' in server_status:
-            self.submit('counter', 'backgroundFlushing.flushes',
-                        server_status['backgroundFlushing']['flushes'])
-            self.submit('gauge', 'backgroundFlushing.average_ms',
-                        server_status['backgroundFlushing']['average_ms'])
-            self.submit('gauge', 'backgroundFlushing.last_ms',
-                        server_status['backgroundFlushing']['last_ms'])
+        backgroundflushing_obj = server_status.get('backgroundFlushing')
+        if backgroundflushing_obj:
+            for t in ['flushes', 'average_ms', 'last_ms']:
+                if t not in backgroundflushing_obj:
+                    continue
+
+                self.submit('counter', 'backgroundFlushing.{}'.format(t),
+                            backgroundflushing_obj[t])
 
         # asserts
-        if 'asserts' in server_status:
+        asserts_obj = server_status.get('asserts')
+        if asserts_obj:
             for t in ['regular', 'warning']:
-                self.submit('counter', 'asserts.' + t,
-                            server_status['asserts'][t])
+                if t not in asserts_obj:
+                    continue
+
+                self.submit('counter', 'asserts.{}'.format(t),
+                            asserts_obj[t])
 
         # page faults
-        if 'extra_info' in server_status:
-            self.submit('counter', 'extra_info.page_faults',
-                        server_status['extra_info']['page_faults'])
-            if 'heap_usage_bytes' in server_status['extra_info']:
-                self.submit('gauge', 'extra_info.heap_usage_bytes',
-                            server_status['extra_info'][
-                                'heap_usage_bytes'])
+        extra_info_obj = server_status.get('extra_info')
+        if extra_info_obj:
+            for t in ['page_faults', 'heap_usage_bytes']:
+                if t not in extra_info_obj:
+                    continue
+
+                self.submit('counter', 'extra_info.{}'.format(t),
+                            extra_info_obj[t])
 
         lock_type = {'R': 'read', 'W': 'write', 'r': 'intentShared',
                      'w': 'intentExclusive'}
@@ -215,14 +238,19 @@ class MongoDB(object):
                             'activeClients': 'gauge'}
 
         # globalLocks
-        if 'globalLock' in server_status:
-            for lock_stat in ('currentQueue', 'activeClients'):
-                if lock_stat in server_status['globalLock']:
-                    for k, v in server_status['globalLock'][lock_stat].items():
-                        if lock_stat in lock_metric_type:
-                            self.submit(lock_metric_type[lock_stat],
-                                        'globalLock.%s.%s' % (
-                                            lock_stat, k), v)
+        globallocks_obj = server_status.get('globalLock')
+        if globallocks_obj:
+            for t in ['currentQueue', 'activeClients']:
+                if t not in globallocks_obj:
+                    continue
+
+                if t not in lock_metric_type:
+                    continue
+
+                for item_key in globallocks_obj[t].keys():
+                    self.submit(lock_metric_type[t],
+                                'globalLock.{}.{}'.format(t, item_key),
+                                globallocks_obj[t][item_key])
 
         # locks for version 3.x
         if eq_gt_3_0 and 'locks' in server_status:
